@@ -126,6 +126,7 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
       |> Enum.map(fn {data, i} ->
         params = Enum.at(params, i) || %{}
 
+
         changeset =
           data
           |> Ecto.Changeset.change()
@@ -141,12 +142,14 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
             valid?: errors == []
         }
 
+        index_string = Integer.to_string(i)
+
         %Phoenix.HTML.Form{
           source: changeset,
           impl: Phoenix.HTML.FormData.Ecto.Changeset,
-          id: id,
+          id: id <> "_" <> index_string,
           index: if(length(list_data) > 1, do: i),
-          name: name,
+          name: name <> "[" <> index_string <> "]",
           errors: errors,
           data: data,
           params: params,

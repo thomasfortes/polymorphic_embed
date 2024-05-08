@@ -1,7 +1,12 @@
-if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) do
+if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) &&
+     Code.ensure_loaded?(PhoenixHTMLHelpers.Form) do
   defmodule PolymorphicEmbed.HTML.Form do
+    @moduledoc """
+    Defines functions for using PolymorphicEmbed with `Phoenix.HTML.Form`.
+    """
     import Phoenix.HTML, only: [html_escape: 1]
-    import Phoenix.HTML.Form, only: [hidden_inputs_for: 1, input_value: 2]
+    import Phoenix.HTML.Form, only: [input_value: 2]
+    import PhoenixHTMLHelpers.Form, only: [hidden_inputs_for: 1]
 
     @doc """
     Returns the polymorphic type of the given field in the given form data.
@@ -14,7 +19,19 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
         %_{} = value ->
           PolymorphicEmbed.get_polymorphic_type(schema, field, value)
 
-        _ ->
+        %{} = map ->
+          case PolymorphicEmbed.get_polymorphic_module(schema, field, map) do
+            nil ->
+              nil
+
+            module ->
+              PolymorphicEmbed.get_polymorphic_type(schema, field, module)
+          end
+
+        list when is_list(list) ->
+          nil
+
+        nil ->
           nil
       end
     end
@@ -40,14 +57,15 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
           <%= for channel_form <- polymorphic_embed_inputs_for f, :channel do %>
             <%= hidden_inputs_for(channel_form) %>
 
-            <%= case get_polymorphic_type(channel_form, Reminder, :channel) do %>
+            <%= case get_polymorphic_type(f, Reminder, :channel) do %>
               <% :sms -> %>
                 <%= label channel_form, :number %>
                 <%= text_input channel_form, :number %>
 
               <% :email -> %>
-                <%= label channel_form, :email %>
-                <%= text_input channel_form, :email %>
+                <%= label channel_form, :email_address %>
+                <%= text_input channel_form, :address %>
+            <% end %>
           <% end %>
         </.form>
     """
@@ -67,14 +85,14 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
 
         <%= inputs_for f, :reminders, fn reminder_form -> %>
           <%= polymorphic_embed_inputs_for reminder_form, :channel, fn channel_form -> %>
-            <%= case get_polymorphic_type(channel_form, Reminder, :channel) do %>
+            <%= case get_polymorphic_type(reminder_form, Reminder, :channel) do %>
               <% :sms -> %>
                 <%= label poly_form, :number %>
                 <%= text_input poly_form, :number %>
 
               <% :email -> %>
-                <%= label poly_form, :email %>
-                <%= text_input poly_form, :email %>
+                <%= label poly_form, :email_address %>
+                <%= text_input poly_form, :address %>
             <% end %>
           <% end %>
         <% end %>
@@ -144,6 +162,9 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
 
         index_string = Integer.to_string(i)
 
+        %schema{} = form.source.data
+        %{type_field_atom: type_field} = PolymorphicEmbed.get_field_options(schema, field)
+
         %Phoenix.HTML.Form{
           source: changeset,
           impl: Phoenix.HTML.FormData.Ecto.Changeset,
@@ -153,7 +174,7 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
           errors: errors,
           data: data,
           params: params,
-          hidden: [__type__: to_string(type)],
+          hidden: [{type_field, to_string(type)}],
           options: options
         }
       end)
